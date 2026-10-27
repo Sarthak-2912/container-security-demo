@@ -1,5 +1,5 @@
 
-name: Container Security Scan
+name: Container Security Analysis
 
 on:
   push:
@@ -14,11 +14,11 @@ permissions:
   security-events: write
 
 jobs:
-  container-scan:
+  security-scan:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Build Docker Image
@@ -26,11 +26,27 @@ jobs:
           docker build \
             -t container-security-demo:${{ github.sha }} .
 
-      - name: Run Trivy Vulnerability Scanner
+      - name: Generate Trivy Report
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: container-security-demo:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '0'
+
+      - name: Upload Trivy Results
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Security Gate
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: container-security-demo:${{ github.sha }}
           format: table
           exit-code: '1'
-          ignore-unfixed: true
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
